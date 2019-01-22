@@ -1,10 +1,11 @@
 #####################################################################
 ## estimate absolute motion out of fMRI realignment parameter file ##
 ## by rkessler1990@gmail.com ########################################
+## version 0.1 ######################################################
 #####################################################################
 library(RColorBrewer)
 
-data_folder <- './data_emoadults/'
+data_folder <- './data/'
 
 file_list <-list.files(path = data_folder, pattern = '*.txt', all.files = FALSE,
                   full.names = FALSE, recursive = FALSE,
