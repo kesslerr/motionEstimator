@@ -15,4 +15,4 @@ what it does:
     e.g. it uses the x, y, and z coordinates and uses the (extended) Pythagorean formula to calculate the absolute motion
 - it plots the scan to scan differences (number of data points is one less then the number of scans acquired, if you want to use it as covariate in a statistical model, you need to add another time point, e.g. 0 at the beginning)
 - it plots the distribution of motion of each subjects, and draws boxplots for different subjects
-- with this, it is easy to detect subjects that show a uncommon motion profile in your subjects
+- with this plot, it is easy to visually detect subjects that show an uncommon motion profile 
