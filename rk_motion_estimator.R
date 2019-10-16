@@ -3,9 +3,10 @@
 ## by rkessler1990@gmail.com ########################################
 ## version 0.1 ######################################################
 #####################################################################
+rm(list=ls())
 library(RColorBrewer)
 
-data_folder <- 'D:/motionEstimator/data/hildesheim_debus/Adults/'
+data_folder <- 'D:/motionEstimator/data/hildesheim_debus/Children/'
 
 file_list <-list.files(path = data_folder, pattern = '*_*', all.files = FALSE,
                   full.names = FALSE, recursive = FALSE,
@@ -67,11 +68,11 @@ df2 <- matrix(ncol=variables, nrow=iterations)
 for(i in 1:iterations){
   df2[i,] <- single.sts[i,] #runif(2)
 }
-df2 <- data.frame(output) #, col.names = file_list)
+df2 <- data.frame(df2) #, col.names = file_list)
 
 ## logarithmic strip chart
 
-stripchart(output,
+stripchart(df2,
            group.names = file_list,
            method = "jitter",
            jitter = 0.4, # jitter expansion
@@ -91,7 +92,7 @@ points(colMeans(single.sts), pch = 16)  # "p", col = "black") #, lty = "..")
 abline(h = 0.35, col = "red", lty = 3) 
 
 ## non-log strip chart
-stripchart(output,
+stripchart(df2,
            group.names = file_list,
            method = "jitter",
            jitter = 0.4, # jitter expansion
