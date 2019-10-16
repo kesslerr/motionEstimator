@@ -5,9 +5,9 @@
 #####################################################################
 library(RColorBrewer)
 
-data_folder <- './data/'
+data_folder <- 'D:/motionEstimator/data/hildesheim_debus/Adults/'
 
-file_list <-list.files(path = data_folder, pattern = '*.txt', all.files = FALSE,
+file_list <-list.files(path = data_folder, pattern = '*_*', all.files = FALSE,
                   full.names = FALSE, recursive = FALSE,
                   ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE)
 
@@ -51,6 +51,64 @@ title("scan to scan motion of all subjects")
 boxplot(single.sts, notch = TRUE, names = file_list,  col=(c("lightgreen","lightblue")),
         ylab = "motion | mm", outline = TRUE, las=2)
 title("scan to scan motion of all subjects")
+
+#######################################
+# point plot / stripchart of all subs #
+#######################################
+
+# you need to update the plotting parameters here before using
+
+options(scipen=999) # disable scientific notation in R
+
+dims <- dim(single.sts)
+iterations = dims[1]
+variables = dims[2]
+df2 <- matrix(ncol=variables, nrow=iterations)
+for(i in 1:iterations){
+  df2[i,] <- single.sts[i,] #runif(2)
+}
+df2 <- data.frame(output) #, col.names = file_list)
+
+## logarithmic strip chart
+
+stripchart(output,
+           group.names = file_list,
+           method = "jitter",
+           jitter = 0.4, # jitter expansion
+           vertical = TRUE,
+           pch = 16,  # marker style
+           cex = 0.75,# point size
+           col=(c("lightgreen","lightblue")),
+           las=2,
+           ylab = "motion | mm",
+           ylim = c(0.01,10),
+           log = "y"
+           )
+
+# plot the means
+points(colMeans(single.sts), pch = 16)  # "p", col = "black") #, lty = "..")
+# plot the threshold
+abline(h = 0.35, col = "red", lty = 3) 
+
+## non-log strip chart
+stripchart(output,
+           group.names = file_list,
+           method = "jitter",
+           jitter = 0.4, # jitter expansion
+           vertical = TRUE,
+           pch = 16,  # marker style
+           cex = 0.75,# point size
+           col=(c("lightgreen","lightblue")),
+           las=2,
+           ylab = "motion | mm",
+           ylim = c(0,10),
+           #log = "y"
+)
+# plot the means
+points(colMeans(single.sts), pch = 16)  # "p", col = "black") #, lty = "..")
+# plot the threshold
+abline(h = 0.35, col = "red", lty = 3) 
+
 
 # sts over time plot
 cols = c(brewer.pal(12, name = "Paired"),brewer.pal(8, name = "Dark2"))
