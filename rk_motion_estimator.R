@@ -1,25 +1,53 @@
 #####################################################################
 ## estimate absolute motion out of fMRI realignment parameter file ##
-## by rkessler1990@gmail.com ########################################
+## by rkesslerx@gmail.com ###########################################
 ## version 0.1 ######################################################
 #####################################################################
-rm(list=ls())
+rm(list=ls())  # remove all objects from current workspace
 library(RColorBrewer)
+library(viridis)  # Load viridis for the viridis palette
+library(ggplot2)
+library(ggdist)
+library(gghalves)
+library(ggridges)
+library(tidyverse)
+library(ggrain)
+library(dplyr)
 
-data_folder <- 'D:/motionEstimator/data/hildesheim_debus/Children/'
 
-file_list <-list.files(path = data_folder, pattern = '*_*', all.files = FALSE,
-                  full.names = FALSE, recursive = FALSE,
+# user input
+raw_dir <- '/Users/roman/GitHub/emprise3t/data/raw/'  # where raw data is located
+result_dir <- '/Users/roman/GitHub/emprise3t/data/interim/'  # where results are saved
+plot_dir <- '/Users/roman/GitHub/emprise3t/plots/qa/motion/' # where plots are saved
+file_pattern <- 'rp_arun-.*\\.txt'  # pattern to find the motion parameter files in subdirectories
+
+# INFO:
+# the subject, session, and run information is taken from the filepath!
+# strings must contain sub-, ses-, and run-
+
+# Create the directory and its parent directories if they do not exist
+dir.create(paste0(plot_dir, "single_participant/"), recursive = TRUE)
+
+file_list <-list.files(path = raw_dir, pattern = file_pattern, all.files = FALSE,
+                  full.names = FALSE, recursive = TRUE,
                   ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE)
 
-mean.sts = numeric()
-median.sts = numeric()
-min.sts = numeric()
-max.sts = numeric()
-single.sts = numeric()
+# Create an empty dataframe to fill with all values
+df <- data.frame(fwd = numeric(),
+                 frame = numeric(),
+                 sub = character(),
+                 ses = character(),
+                 run = character(),
+                 stringsAsFactors = TRUE)
 
 for (i in 1:length(file_list)){
-  data = read.csv(paste(data_folder,file_list[i], collapse = "", sep = ""), sep = '', header = FALSE, col.names = c('x','y','z','pitch','roll','yaw'))
+  data = read.csv(paste(raw_dir,file_list[i], collapse = "", sep = ""), sep = '', header = FALSE, col.names = c('x','y','z','pitch','roll','yaw'))
+  
+  # get sub, ses, run
+  sub_value <- gsub(".*sub-(\\d+).*", "sub-\\1", file_list[i])  # Extract sub value
+  ses_value <- gsub(".*ses-(\\d+).*", "ses-\\1", file_list[i])  # Extract ses value
+  run_value <- gsub(".*run-(\\d+).*", "run-\\1", file_list[i])  # Extract run value
+  sub_ses_run_str = paste0(sub_value, "_", ses_value, "_", run_value)
   
   # calculate differences between successive x y and z values
   diff.x     <- diff(data$x)
@@ -36,90 +64,136 @@ for (i in 1:length(file_list)){
   
   # scan to scan motion according to Mazaika 2011 and an average cortical distance of 65mm according to Marco Wilke et al 
   scan.to.scan <- sqrt(diff.x**2 + diff.y**2 + diff.z**2 + ( 65 * pi / 180 )**2 * (diff.pitch**2 + diff.roll**2 + diff.yaw**2))
-  single.sts <- cbind(single.sts, scan.to.scan)
+  #sts <- cbind(sts, scan.to.scan)
 
   # plot this subject time series for motion
-  plot(scan.to.scan, type = "l", col='black')
+  #plot(scan.to.scan, type = "l", col='black')
+  
+  tryCatch(
+    {
+    # Create a new dataframe for the current iteration
+    new_df <- data.frame(fwd = scan.to.scan,
+                         frame = seq(1,length(scan.to.scan)),
+                         sub = sub_value,
+                         ses = ses_value,
+                         run = run_value)
+    
+    # plot fwd time series
+    p1 <- ggplot(new_df, aes(x=frame, y=fwd)) +
+      geom_line() +
+      geom_hline(yintercept = 1.5, linetype='dotted', col="darkred") +
+      geom_hline(yintercept = 3, linetype='solid', col="darkred", lwd=1.5) +
+      geom_text(aes(0,3,label = "voxel size", vjust = +2, hjust = -1), 
+                color="darkred") +
+      labs(title=paste0("frame-wise displacement (", 
+                        sub_ses_run_str, ")"),
+           y="frame-wise displacement | mm")
+    
+    ggsave(filename=paste0(plot_dir, "single_participant/fwd_", sub_ses_run_str, ".png"),
+           plot=p1, dpi=200,
+           height = 6, width = 18, unit = "cm")
+    
+    # wide to long transformation of raw motion parameters
+    axis_order <- c("x", "y", "z", "pitch", "roll", "yaw")
+    long_data <- data %>%
+      mutate(frame = row_number()) %>%
+      pivot_longer(cols = c(x, y, z, pitch, roll, yaw),
+                   names_to = "axis",
+                   values_to = "displacement") %>%
+      mutate(axis = factor(axis, levels = axis_order))
+    
+    # plot raw motion time series
+    p2 <- ggplot(long_data, aes(x=frame, y=displacement, color=axis)) +
+      geom_line() +
+      geom_hline(yintercept = 1.5, linetype='dotted', col="darkred") +
+      geom_hline(yintercept = 3, linetype='solid', col="darkred", lwd=1.5) +
+      geom_text(aes(0,3,label = "voxel size", vjust = +2, hjust = -1), 
+                color="darkred") +
+      labs(title=paste0("motion parameters (", 
+                        sub_ses_run_str, ")"),
+           y="displacement | mm || deg")
+    
+    ggsave(filename=paste0(plot_dir, "single_participant/motion_", sub_ses_run_str, ".png"),
+           plot=p2, dpi=200,
+           height = 6, width = 18, unit = "cm")
+    
+    
+    # Append the new dataframe to the existing dataframe
+    df <- rbind(df, new_df)
+    },
+    error = function(e) {
+      cat(paste("Error:", e$message, "\n"))
+      cat(paste(sub_value, " ", ses_value, " ", run_value, "does not fit\n"))
+      
+    }
+  )
   
 }
   
 # boxplot over subjects
-boxplot(single.sts, notch = TRUE, names = file_list,  col=(c("lightgreen","lightblue")),
-        ylab = "motion | mm", outline = FALSE, las=2)
-title("scan to scan motion of all subjects")
 
-# boxplot with all outliners
-boxplot(single.sts, notch = TRUE, names = file_list,  col=(c("lightgreen","lightblue")),
-        ylab = "motion | mm", outline = TRUE, las=2)
-title("scan to scan motion of all subjects")
+#ggplot(data=df, aes(x=ses, y=fwd, fill=run)) +
+#  geom_boxplot(outlier.shape = NA) + # no outliers
+#  scale_y_continuous(limits = quantile(df$fwd, c(0.0, 0.9))) + # to scale to not show outlier scales
+#  labs(y = "frame wise displacement | mm") +
+#  scale_fill_viridis(discrete=TRUE, alpha=0.5) +
+#  facet_grid(sub ~ .)
 
-#######################################
-# point plot / stripchart of all subs #
-#######################################
-
-# you need to update the plotting parameters here before using
-
-options(scipen=999) # disable scientific notation in R
-
-dims <- dim(single.sts)
-iterations = dims[1]
-variables = dims[2]
-df2 <- matrix(ncol=variables, nrow=iterations)
-for(i in 1:iterations){
-  df2[i,] <- single.sts[i,] #runif(2)
-}
-df2 <- data.frame(df2) #, col.names = file_list)
-
-## logarithmic strip chart
-
-stripchart(df2,
-           group.names = file_list,
-           method = "jitter",
-           jitter = 0.4, # jitter expansion
-           vertical = TRUE,
-           pch = 16,  # marker style
-           cex = 0.75,# point size
-           col=(c("lightgreen","lightblue")),
-           las=2,
-           ylab = "motion | mm",
-           ylim = c(0.01,10),
-           log = "y"
-           )
-
-# plot the means
-points(colMeans(single.sts), pch = 16)  # "p", col = "black") #, lty = "..")
-# plot the threshold
-abline(h = 0.35, col = "red", lty = 3) 
-
-## non-log strip chart
-stripchart(df2,
-           group.names = file_list,
-           method = "jitter",
-           jitter = 0.4, # jitter expansion
-           vertical = TRUE,
-           pch = 16,  # marker style
-           cex = 0.75,# point size
-           col=(c("lightgreen","lightblue")),
-           las=2,
-           ylab = "motion | mm",
-           ylim = c(0,10),
-           #log = "y"
-)
-# plot the means
-points(colMeans(single.sts), pch = 16)  # "p", col = "black") #, lty = "..")
-# plot the threshold
-abline(h = 0.35, col = "red", lty = 3) 
+# raincould plot
+p3 <- ggplot(data = df, aes(x = ses, y = fwd, color = run)) + #, fill = run
+  geom_rain(alpha = 0.5, 
+            point.args = rlang::list2(size=0.005),
+            point.args.pos = rlang::list2(
+              position = position_jitter(width = 0.15, height = 0, 
+                                         seed = 42)),
+            boxplot.args.pos = list(
+              position = ggpp::position_dodgenudge(x = -.35), 
+              width = 0.3
+            ),
+            violin.args.pos = rlang::list2(
+              position = position_nudge(x = 0.2), 
+              width = 0.4
+            ),
+            violin.args = rlang::list2(side="r")
+            ) +
+  facet_grid(sub ~ .) +
+  scale_y_log10() +
+  geom_hline(yintercept = 3, linetype='dashed', 
+             col="darkred", lwd=0.5) +
+  labs(title="frame-wise motion",
+       y = "frame-wise displacement | mm",
+       x = "session")
 
 
-# sts over time plot
-cols = c(brewer.pal(12, name = "Paired"),brewer.pal(8, name = "Dark2"))
-#par(xpd = TRUE)
-ts.plot(single.sts, col = cols, ylab = "motion | mm")
-#legend('right',4, file_list, fill = cols, xpd = TRUE)
-title('scan to scan motion over time')
+ggsave(filename=paste0(plot_dir, "fwd.png"),
+       plot=p3, dpi=300,
+       height = 30, width = 30, unit = "cm")
 
-# print some interesting values
-mean = colMeans(single.sts)
-sum = colSums(single.sts)
-out = cbind(mean,sum)
-out
+
+# save data and summary statistics
+write.csv(df, 
+          paste0(result_dir, "fwd.csv"), 
+          row.names=FALSE)
+
+#define quantiles of interest
+q = seq(from=0.0, to=1, by=0.1)
+
+#calculate quantiles by grouping variable
+df_summary <- df %>%
+  group_by(sub,ses,run) %>%
+  summarize(quant00 = quantile(fwd, probs = q[1]),
+            quant10 = quantile(fwd, probs = q[2]),
+            quant20 = quantile(fwd, probs = q[3]),
+            quant30 = quantile(fwd, probs = q[4]),
+            quant40 = quantile(fwd, probs = q[5]),
+            quant50 = quantile(fwd, probs = q[6]),
+            quant60 = quantile(fwd, probs = q[7]),
+            quant70 = quantile(fwd, probs = q[8]),
+            quant80 = quantile(fwd, probs = q[9]),
+            quant90 = quantile(fwd, probs = q[10]),
+            quant100 = quantile(fwd, probs = q[11])
+            )
+
+write.csv(df_summary, 
+          paste0(result_dir, "fwd_quantiules.csv"), 
+          row.names=FALSE)
